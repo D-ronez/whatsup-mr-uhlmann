@@ -4,7 +4,7 @@ function [] = main()
     % time step
     dt = 0.01;
 
-    t=(0:dt:2)';
+    t=(0:dt:200)';
     n = numel(t);
 
     %ground truth
@@ -89,8 +89,9 @@ function [X, P] = init_kalman(X, y)
     X(1,1) = y;
     X(2,1) = 0;
 
-    P = [100 0;
-         0   300];
+    P = [100 0 0;
+         0   300 0;
+	 0 0 100];
 end
 
 function [X, P] = prediction(X, P, Q, F)
