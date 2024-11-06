@@ -95,7 +95,9 @@ function [X, P] = prediction(X, P, Q, F)
 end
 
 function [X, P] = update(X, P, y, R, H)
+    % Difference b/w measured, and previous, in measurement space
     Inn = y - H*X;
+
     S = H*P*H' + R;
     K = P*H'/S;
 
