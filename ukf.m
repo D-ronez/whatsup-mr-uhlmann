@@ -1,14 +1,15 @@
-% Source: https://stackoverflow.com/questions/55813719/multi-sensors-fusion-using-kalman-filter
+% Implements an unscented Kalman Filter (goole "Sigma-point Kalman Filters")
+% This code is derived from: https://stackoverflow.com/questions/55813719/multi-sensors-fusion-using-kalman-filter
 
 function [] = main()
     % time step
     dt = 0.01;
 
-    t=(0:dt:200)';
+    t=(0:dt:2)';
     n = numel(t);
 
     %ground truth
-    signal = sin(t)+t; 
+    signal = sin(t)+t;
 
     % state matrix: (pos, vel, acc)
     X = zeros(3,1);
@@ -24,28 +25,29 @@ function [] = main()
          0 1 0;
          0 0 1];
 
-    % transition matrix
+    % transition matrix, a way to represent the process, and control. Only
+    % works for linear processes, will be replaced soon.
     F = [1 dt 0;
          0 1 0;
-         0 0 0]; 
+         0 0 1];
 
-    % observation matrix 
+    % observation matrix
     H = [1 0 0];
 
-    % variance of signal 1 
-    s1_var = 0.08*ones(size(t)); 
+    % variance of signal 1
+    s1_var = 0.08*ones(size(t));
     s1 = generate_signal(signal, s1_var);
 
-    % variance of signal 2 
+    % variance of signal 2
     s2_var = 0.01*(cos(8*t)+10*t);
     s2 = generate_signal(signal, s2_var);
 
-    % variance of signal 3 
+    % variance of signal 3
     s3_var = 0.02*(sin(2*t)+2);
     s3 = generate_signal(signal, s3_var);
 
-    % variance of signal 4 
-    s4_var = 0.06*ones(size(t)); 
+    % variance of signal 4
+    s4_var = 0.06*ones(size(t));
     s4 = generate_signal(signal, s4_var);
 
     % fusion
@@ -53,7 +55,13 @@ function [] = main()
         if (i == 1)
             [X, P] = init_kalman(X, s1(i, 1)); % initialize the state using the 1st sensor
         else
-            [X, P] = prediction(X, P, Q, F);
+            % Prediction stage
+            [xx, ww] = calculate_sigma_points_vdm(X, P)
+            % Propagate sigma-points
+            for i = 1:size(xx)(1,2)
+                xx(:,i) = prediction(xx(:,i), P, Q, F);
+            end
+            [X, P] = unscented_transform(xx, ww, Q);
 
             [X, P] = update(X, P, s1(i, 1), s1(i, 2), H);
             [X, P] = update(X, P, s2(i, 1), s2(i, 2), H);
@@ -76,13 +84,42 @@ function [] = main()
     legend('Ground Truth', 'Sensor Input 1', 'Sensor Input 2', 'Sensor Input 3', 'Sensor Input 4', 'Fused Output');
 end
 
+function [X, P] = unscented_transform(yy, ww, Q)
+    % Ins:
+    % - xx: propagated sigma-points (post-prediction), representation is the
+    % same as the one used for xx in `calculate_sigma_points_vdm`
+    % - ww: weights, see `calculate_sigma_points_vdm`
+    % - Q: system noise
+    %
+    % Outs:
+    % - X: prior mean
+    % - P: covariance
+    %
+    % See https://docs.duckietown.com/daffy/course-intro-to-drones/ukf/theory/ukf-specifics.html
+
+    % Calculate prior mean
+    npoints = size(yy)(1,2); % number of sigma-points
+    dim = size(yy)(1, 1);
+    X = zeros(dim, 1)
+    for i = 1:npoints
+        X = X + ww(i) * yy(:,i)
+    end
+
+    % Calculate covariance matrix
+    P = zeros(dim, 1)
+    for i = 1:npoints
+        P = P + ww(i) * (yy(:, i) - X) * (yy(:,i) - X)'
+    end
+    P = P + Q
+end
+
 function [s] = generate_signal(signal, var)
     noise = randn(size(signal)).*sqrt(var);
 
     s(:, 1) = signal + noise;
 
     % Just a way to store variance, it has no special meaning
-    s(:, 2) = var; 
+    s(:, 2) = var;
 end
 
 function [X, P] = init_kalman(X, y)
@@ -91,7 +128,36 @@ function [X, P] = init_kalman(X, y)
 
     P = [100 0 0;
          0   300 0;
-	 0 0 100];
+        0 0 100];
+end
+
+function [xx, ww] = calculate_sigma_points_vdm(X, P)
+    % VDM stands for "Van der Merwe"
+    % Calculate sigma points using Van der Merwe's et. al. algorithm (2004)
+    % https://www.researchgate.net/publication/228846510_Sigma-Point_Kalman_Filters_for_Nonlinear_Estimation_and_Sensor-Fusion-Applications_to_Integrated_Navigation
+    % xx - a matrix whose columns represent sigma functions, and
+    % ww - weights, same structure as xx
+    % zeta - scaling factor
+    % The number of sigma points N = 2 * dim + 1, where dim - number of dimensions of the state vector
+
+    dim = size(P)(1,1);
+    xx = zeros(dim, 2 * dim + 1);
+    ww = zeros(dim, 2 * dim + 1);
+    % Inverse square root of a matrix
+    psqr = sqrtm(P);
+    % TODO: I have no idea what zeta should be equal to
+    zeta = 0.5;
+
+    % Initialize sigma-points
+    xx(:,1) = X;
+    for i = 2:dim
+        xx(:,i) = X + zeta * psqr(:,i);
+    end
+    for i = dim:(2 * dim)
+        xx(:,i) = X - zeta * psqr(:,i);
+    end
+    % Initialize weights. Results in normalized weight vector
+    ww = [2, ones(1, dim * 2)] / (2 + (dim * 2));
 end
 
 function [X, P] = prediction(X, P, Q, F)
