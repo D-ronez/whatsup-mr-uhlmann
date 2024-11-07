@@ -22,8 +22,8 @@ function [] = main()
 
     % system noise
     Q = [0.04 0 0;
-         0 1 0;
-         0 0 1];
+         0 0 0;
+         0 0 0];
 
     % transition matrix, a way to represent the process, and control. Only
     % works for linear processes, will be replaced soon.
@@ -57,14 +57,13 @@ function [] = main()
         else
             % Prediction stage
             [xx, ww] = calculate_sigma_points_vdm(X, P);
-            xx
             % Propagate sigma-points
             for i = 1:size(xx)(1,2)
                 xx(:,i) = prediction(xx(:,i), P, Q, F);
             end
             [X, P] = unscented_transform(xx, ww, Q);
 
-            [X, P] = unscented_update(xx, ww, X, P, H, s1(i, 1), s1(i, 2));
+            [X, P] = unscented_update(xx, ww, X, P, H, s1(i, 1), [s1(i, 2) 0 0]);
             % [X, P] = update(X, P, s1(i, 1), s1(i, 2), H);
             % [X, P] = update(X, P, s2(i, 1), s2(i, 2), H);
             % [X, P] = update(X, P, s3(i, 1), s3(i, 2), H);
@@ -72,7 +71,6 @@ function [] = main()
         end
 
         X_arr(i, :) = X;
-        X, P
     end
 
     plot(t, signal, 'LineWidth', 4);
@@ -104,7 +102,7 @@ function [X, P] = unscented_update(yy, ww, X, P, H, Z, R)
         % TODO: Matrix H will become obsolete, it is not applicable to a general
         % case, because the observation coversion cannot be expressed as a
         % linear transformation at all times
-        zz(:, i) = H * yy(:, i);
+        zz(:, i) = yy(:, i);
     end
     % Compute mean of the measurement sigma points using unscented transform
     mu = zeros(dim, 1);
@@ -116,7 +114,8 @@ function [X, P] = unscented_update(yy, ww, X, P, H, Z, R)
     for i = 1:npoints
         Pz = ww(i) * (zz(:, i) - mu) * (zz(:, i) - mu)';
     end
-    Pz += R;
+    Pz = Pz + R;
+    Pz, inv(Pz)
 
     % Compute residual in measurement space
     yt = Z - mu;
@@ -148,7 +147,7 @@ function [X, P] = unscented_transform(yy, ww, Q)
     % See https://docs.duckietown.com/daffy/course-intro-to-drones/ukf/theory/ukf-specifics.html
 
     % Calculate prior mean
-    npoints = size(yy)(1,2); % number of sigma-points
+    npoints = size(yy)(1, 2); % number of sigma-points
     dim = size(yy)(1, 1);
     X = zeros(dim, 1);
     for i = 1:npoints
@@ -156,7 +155,7 @@ function [X, P] = unscented_transform(yy, ww, Q)
     end
 
     % Calculate covariance matrix
-    P = zeros(dim, 1);
+    P = zeros(dim, dim);
     for i = 1:npoints
         P = P + ww(i) * (yy(:, i) - X) * (yy(:,i) - X)';
     end
@@ -178,7 +177,7 @@ function [X, P] = init_kalman(X, y)
 
     P = [100 0 0;
          0   300 0;
-        0 0 100];
+        0 0 0];
 end
 
 function [xx, ww] = calculate_sigma_points_vdm(X, P)
@@ -191,23 +190,24 @@ function [xx, ww] = calculate_sigma_points_vdm(X, P)
     % The number of sigma points N = 2 * dim + 1, where dim - number of dimensions of the state vector
 
     dim = size(P)(1, 1);
-    xx = zeros(dim, 2 * dim + 1);
-    ww = zeros(dim, 2 * dim + 1);
     % Inverse square root of a matrix
     psqr = sqrtm(P);
     % TODO: I have no idea what zeta should be equal to
-    zeta = 0.5;
+    zeta = 0.1;
 
     % Initialize sigma-points
+    xx = zeros(dim, 2 * dim + 1);
     xx(:,1) = X;
-    for i = 2:dim
-        xx(:, i) = X + zeta * psqr(:, i);
+    for i = 1:dim
+        xx(:, i + 1) = X + zeta * psqr(:, i);
     end
-    for i = 1 : dim
-        xx(:, i + dim) = X - zeta * psqr(:, i);
+    for i = 1:dim
+        xx(:, i + dim + 1) = X - zeta * psqr(:, i);
     end
     % Initialize weights. Results in normalized weight vector
-    ww = [2, ones(1, dim * 2)] / (2 + (dim * 2));
+    ww = zeros(dim, 2 * dim + 1);
+    ww = [1, ones(1, dim * 2)];
+    ww = ww / sum(ww);
 end
 
 function [X, P] = prediction(X, P, Q, F)
