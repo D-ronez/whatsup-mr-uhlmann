@@ -84,6 +84,53 @@ function [] = main()
     legend('Ground Truth', 'Sensor Input 1', 'Sensor Input 2', 'Sensor Input 3', 'Sensor Input 4', 'Fused Output');
 end
 
+function [X, P] = update_unscented(yy, ww, X, H, R, Z)
+    % - H: observation matrix. Just a way to represent conversions from
+    %   measurements to actual data, will become obsolete
+    % Read: https://docs.duckietown.com/daffy/course-intro-to-drones/ukf/theory/ukf-specifics.html
+    % - yy: predicted sigma points after unscented transform
+    % - R: noise covariance matrix
+    % - Z: measurement matrix (signal from the sensor)
+    % - X: predicted state after unscented transform
+    npoints = size(yy)(1, 2)
+    dim = size(yy)(1, 1)
+
+    % Compute the measurement sigma points
+    zz = zeros(size(xx))
+    for i = 1:npoints:
+        % TODO: Matrix H will become obsolete, it is not applicable to a general
+        % case, because the observation coversion cannot be expressed as a
+        % linear transformation at all times
+        zz(:, i) = yy(:, i) * H
+    end
+    % Compute mean of the measurement sigma points using unscented transform
+    mu = zeros(dim, 1)
+    for i = 1:npoints
+        mu = mu + ww(i) * zz(:, i)
+    end
+    % Compute covariance of the measurement sigma points using unscented transform
+    Pz = zeros(dim, 1)
+    for i = 1:npoints
+        Pz = ww(i) * (zz(:, i) - mu) * (zz(:, i) - mu)'
+    end
+    Pz += R
+
+    % Compute residual in measurement space
+    yt = Z - mu
+    % Compute cross-covariance between state and measurements
+    Pxz = zeros(dim, 1)
+    for i = 1:npoints
+        Pxz += ww(i) * (yy(:, i) - X) * (zz(:, i) - mu)'
+    end
+    % Compute Kalman gain
+    K = Pxz * inv(Pz)
+
+    % Compute the mean of posterior state estimate
+    X = X + K * yt
+    % Compute covariance matrix of posterior state estimate
+    P = P - K * Pz * K'
+end
+
 function [X, P] = unscented_transform(yy, ww, Q)
     % Ins:
     % - xx: propagated sigma-points (post-prediction), representation is the
@@ -118,7 +165,7 @@ function [s] = generate_signal(signal, var)
 
     s(:, 1) = signal + noise;
 
-    % Just a way to store variance, it has no special meaning
+    % Just a way to store square of variance, it has no special meaning
     s(:, 2) = var;
 end
 
@@ -166,6 +213,7 @@ function [X, P] = prediction(X, P, Q, F)
 end
 
 function [X, P] = update(X, P, y, R, H)
+    % R: measurement noise covariance matrix (in 1-dimensional case, may just be represented as a scalar)
     % Difference b/w measured, and previous, in measurement space
     Inn = y - H*X;
 
