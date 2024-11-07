@@ -56,20 +56,23 @@ function [] = main()
             [X, P] = init_kalman(X, s1(i, 1)); % initialize the state using the 1st sensor
         else
             % Prediction stage
-            [xx, ww] = calculate_sigma_points_vdm(X, P)
+            [xx, ww] = calculate_sigma_points_vdm(X, P);
+            xx
             % Propagate sigma-points
             for i = 1:size(xx)(1,2)
                 xx(:,i) = prediction(xx(:,i), P, Q, F);
             end
             [X, P] = unscented_transform(xx, ww, Q);
 
-            [X, P] = update(X, P, s1(i, 1), s1(i, 2), H);
-            [X, P] = update(X, P, s2(i, 1), s2(i, 2), H);
-            [X, P] = update(X, P, s3(i, 1), s3(i, 2), H);
-            [X, P] = update(X, P, s4(i, 1), s4(i, 2), H);
+            [X, P] = unscented_update(xx, ww, X, P, H, s1(i, 1), s1(i, 2));
+            % [X, P] = update(X, P, s1(i, 1), s1(i, 2), H);
+            % [X, P] = update(X, P, s2(i, 1), s2(i, 2), H);
+            % [X, P] = update(X, P, s3(i, 1), s3(i, 2), H);
+            % [X, P] = update(X, P, s4(i, 1), s4(i, 2), H);
         end
 
         X_arr(i, :) = X;
+        X, P
     end
 
     plot(t, signal, 'LineWidth', 4);
@@ -84,7 +87,7 @@ function [] = main()
     legend('Ground Truth', 'Sensor Input 1', 'Sensor Input 2', 'Sensor Input 3', 'Sensor Input 4', 'Fused Output');
 end
 
-function [X, P] = update_unscented(yy, ww, X, H, R, Z)
+function [X, P] = unscented_update(yy, ww, X, P, H, Z, R)
     % - H: observation matrix. Just a way to represent conversions from
     %   measurements to actual data, will become obsolete
     % Read: https://docs.duckietown.com/daffy/course-intro-to-drones/ukf/theory/ukf-specifics.html
@@ -92,43 +95,43 @@ function [X, P] = update_unscented(yy, ww, X, H, R, Z)
     % - R: noise covariance matrix
     % - Z: measurement matrix (signal from the sensor)
     % - X: predicted state after unscented transform
-    npoints = size(yy)(1, 2)
-    dim = size(yy)(1, 1)
+    npoints = size(yy)(1, 2);
+    dim = size(yy)(1, 1);
 
     % Compute the measurement sigma points
-    zz = zeros(size(xx))
-    for i = 1:npoints:
+    zz = zeros(size(yy));
+    for i = 1:npoints
         % TODO: Matrix H will become obsolete, it is not applicable to a general
         % case, because the observation coversion cannot be expressed as a
         % linear transformation at all times
-        zz(:, i) = yy(:, i) * H
+        zz(:, i) = H * yy(:, i);
     end
     % Compute mean of the measurement sigma points using unscented transform
-    mu = zeros(dim, 1)
+    mu = zeros(dim, 1);
     for i = 1:npoints
-        mu = mu + ww(i) * zz(:, i)
+        mu = mu + ww(i) * zz(:, i);
     end
     % Compute covariance of the measurement sigma points using unscented transform
-    Pz = zeros(dim, 1)
+    Pz = zeros(dim, dim);
     for i = 1:npoints
-        Pz = ww(i) * (zz(:, i) - mu) * (zz(:, i) - mu)'
+        Pz = ww(i) * (zz(:, i) - mu) * (zz(:, i) - mu)';
     end
-    Pz += R
+    Pz += R;
 
     % Compute residual in measurement space
-    yt = Z - mu
+    yt = Z - mu;
     % Compute cross-covariance between state and measurements
-    Pxz = zeros(dim, 1)
-    for i = 1:npoints
-        Pxz += ww(i) * (yy(:, i) - X) * (zz(:, i) - mu)'
+    Pxz = zeros(dim, dim);
+    for i = 1:npoints;
+        Pxz = Pxz + ww(i) * (yy(:, i) - X) * (zz(:, i) - mu)';
     end
     % Compute Kalman gain
-    K = Pxz * inv(Pz)
+    K = Pxz * inv(Pz);
 
     % Compute the mean of posterior state estimate
-    X = X + K * yt
+    X = X + K * yt;
     % Compute covariance matrix of posterior state estimate
-    P = P - K * Pz * K'
+    P = P - K * Pz * K';
 end
 
 function [X, P] = unscented_transform(yy, ww, Q)
@@ -147,17 +150,17 @@ function [X, P] = unscented_transform(yy, ww, Q)
     % Calculate prior mean
     npoints = size(yy)(1,2); % number of sigma-points
     dim = size(yy)(1, 1);
-    X = zeros(dim, 1)
+    X = zeros(dim, 1);
     for i = 1:npoints
-        X = X + ww(i) * yy(:,i)
+        X = X + ww(i) * yy(:,i);
     end
 
     % Calculate covariance matrix
-    P = zeros(dim, 1)
+    P = zeros(dim, 1);
     for i = 1:npoints
-        P = P + ww(i) * (yy(:, i) - X) * (yy(:,i) - X)'
+        P = P + ww(i) * (yy(:, i) - X) * (yy(:,i) - X)';
     end
-    P = P + Q
+    P = P + Q;
 end
 
 function [s] = generate_signal(signal, var)
@@ -187,7 +190,7 @@ function [xx, ww] = calculate_sigma_points_vdm(X, P)
     % zeta - scaling factor
     % The number of sigma points N = 2 * dim + 1, where dim - number of dimensions of the state vector
 
-    dim = size(P)(1,1);
+    dim = size(P)(1, 1);
     xx = zeros(dim, 2 * dim + 1);
     ww = zeros(dim, 2 * dim + 1);
     % Inverse square root of a matrix
@@ -198,10 +201,10 @@ function [xx, ww] = calculate_sigma_points_vdm(X, P)
     % Initialize sigma-points
     xx(:,1) = X;
     for i = 2:dim
-        xx(:,i) = X + zeta * psqr(:,i);
+        xx(:, i) = X + zeta * psqr(:, i);
     end
-    for i = dim:(2 * dim)
-        xx(:,i) = X - zeta * psqr(:,i);
+    for i = 1 : dim
+        xx(:, i + dim) = X - zeta * psqr(:, i);
     end
     % Initialize weights. Results in normalized weight vector
     ww = [2, ones(1, dim * 2)] / (2 + (dim * 2));
