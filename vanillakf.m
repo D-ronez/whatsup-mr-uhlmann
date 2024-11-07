@@ -8,7 +8,7 @@ function [] = main()
     n = numel(t);
 
     %ground truth
-    signal = sin(t)+t; 
+    signal = sin(t)+t;
 
     % state matrix
     X = zeros(2,1);
@@ -25,25 +25,25 @@ function [] = main()
 
     % transition matrix
     F = [1 dt;
-         0 1]; 
+         0 1];
 
-    % observation matrix 
+    % observation matrix
     H = [1 0];
 
-    % variance of signal 1 
-    s1_var = 0.08*ones(size(t)); 
+    % variance of signal 1
+    s1_var = 0.08*ones(size(t));
     s1 = generate_signal(signal, s1_var);
 
-    % variance of signal 2 
+    % variance of signal 2
     s2_var = 0.01*(cos(8*t)+10*t);
     s2 = generate_signal(signal, s2_var);
 
-    % variance of signal 3 
+    % variance of signal 3
     s3_var = 0.02*(sin(2*t)+2);
     s3 = generate_signal(signal, s3_var);
 
-    % variance of signal 4 
-    s4_var = 0.06*ones(size(t)); 
+    % variance of signal 4
+    s4_var = 0.06*ones(size(t));
     s4 = generate_signal(signal, s4_var);
 
     % fusion
@@ -78,7 +78,7 @@ function [s] = generate_signal(signal, var)
     noise = randn(size(signal)).*sqrt(var);
 
     s(:, 1) = signal + noise;
-    s(:, 2) = var; 
+    s(:, 2) = var;
 end
 
 function [X, P] = init_kalman(X, y)
@@ -95,6 +95,7 @@ function [X, P] = prediction(X, P, Q, F)
 end
 
 function [X, P] = update(X, P, y, R, H)
+    % R: measurement noise covariance matrix (in 1-dimensional case, may just be represented as a scalar)
     % Difference b/w measured, and previous, in measurement space
     Inn = y - H*X;
 
