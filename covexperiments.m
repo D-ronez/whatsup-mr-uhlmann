@@ -29,12 +29,12 @@ function [] = main()
     byy = byy + linspace(0, 5, numel(yy));
 
     % Stats
-    [cyy, corr, vyyg, vyyb] = get_cov_window(tt, gyy, byy, 5);
+    [cyy, corr, vyyg, vyyb] = get_cov_window(tt, gyy, byy, 20);
 
     % Filtering
     sigma_frac = vyyg ./ vyyb;
     % Trust boost
-    boost = 0
+    boost = -sigma_frac + 0.2;
     gnss_score = (boost + vyyb) ./ (vyyb + vyyg);
     for i = 1:numel(gnss_score)
         gnss_score(i) = clamp(0, gnss_score(i), 1);
