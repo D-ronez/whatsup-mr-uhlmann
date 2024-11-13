@@ -41,9 +41,9 @@ function [ttyyaccgyro] = process_mpu60xx_accgyro_data(ttyaccgyro_raw)
 	% ttyaccgyro_raw: matrix [TIME NAME ACCXRAW ACCYRAW ACCZRAW TEMP GYROXRAW GYROYRAW GYROZRAW] (s ADC ADC ADC ~ ADC ADC ADC)
 	% ttyyaccgyro: matrix [TIME NAME ACCX ACCY ACCZ TEMP GYROX GYROY GYROZ] (s m/s2 m/s2 m/s2 ~ deg/s deg/s deg/s)
 	g = 9.80665;
-	accscale = 16; % [g]
+	accscale = 16; % [+-g]
 	gyroscale = 2000; % [deg/s]
-	resolution = 2^16 - 1; % 16 bit ADC
+	resolution = 2^15 - 1; % 16 bit ADC. int16
 
 	ttyyaccgyro = ttyaccgyro_raw;
 	ttyyaccgyro(:, 3) = ttyaccgyro_raw(:, 3) / resolution * accscale * g;
