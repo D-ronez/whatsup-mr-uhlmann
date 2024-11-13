@@ -19,9 +19,36 @@ yaw = 0
 hold on;
 plot3_euler([roll pitch yaw]);
 
+if false % Animated plot of position changes with estimation
+startpos = 1
+printeach = 10
+updateeach = printeach * 5
+t = ttyyaccgyro(startpos, 1)
+for i = startpos:size(ttyyaccgyro)(1)
+	acc = ttyyaccgyro(i, 3:5);
+	gyro = ttyyaccgyro(i, 7:9);
+	prevt = t;
+	t = ttyyaccgyro(i, 1);
+	dt = t - prevt;
+	euler = euler_estimate_complemetary([roll pitch yaw], acc, gyro, dt);
+	if mod(i, updateeach) == 0
+		cla
+	end
+	if mod(i, printeach) == 0
+		hold on;
+		xlim([-0.3 0.3])
+		ylim([-0.3 0.3])
+		zlim([-0.3 0.3])
+		plot3_euler(euler);
+		pause(0.02)
+		t
+	end
+end
+end % Animated plot of position changes with estimation
+
 % Estimate orientation changes
 
-if false %
+if false % raw data
 hold on;
 grid on;
 % Baro
@@ -50,4 +77,4 @@ for i = [7 8 9]
 	grid on
 	plot(ttacc, ttyyaccgyro(:, i));
 end
-end %
+end % Raw data
