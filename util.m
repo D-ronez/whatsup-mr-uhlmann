@@ -26,11 +26,7 @@ function [] = plot3_rot(rot)
 	plot3_vector(rot(:, 3)')
 end
 
-function [] = plot3_euler(euler)
-	% Same as plot3_rot, but uses euler angles
-	% roll: [rad]
-	% pitch: [rad]
-
+function [rot] = euler2rot(euler)
 	roll = euler(1);
 	pitch = euler(2);
 	yaw = euler(3);
@@ -51,6 +47,14 @@ function [] = plot3_euler(euler)
 		0 0 1;
 	];
 	rot = rollrot * pitchrot * yawrot;
+end
+
+function [] = plot3_euler(euler)
+	% Same as plot3_rot, but uses euler angles
+	% roll: [rad]
+	% pitch: [rad]
+
+	rot = euler2rot(euler);
 	plot3_rot(rot);
 end
 
