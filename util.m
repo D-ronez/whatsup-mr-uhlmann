@@ -31,10 +31,9 @@ function [] = plot3_euler(euler)
 	% roll: [rad]
 	% pitch: [rad]
 
-	initial = eye(3)
-	roll = euler(1)
-	pitch = euler(2)
-	yaw = euler(3)
+	roll = euler(1);
+	pitch = euler(2);
+	yaw = euler(3);
 
 	rollrot = [
 		1 0 0;
