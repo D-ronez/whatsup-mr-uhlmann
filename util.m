@@ -62,8 +62,10 @@ function [] = plot3_vector(p)
 	plot3_vector2([0 0 0], p);
 end
 
-function [roll, pitch, yaw] = rot2euler(rot)
+function euler = rot2euler(rot)
+	% returns [roll pitch yaw]
 	yaw = atan2(rot(2, 1), rot(2, 2));
 	roll = atan2(rot(3, 2), rot(2, 2));
 	pitch = atan2(rot(1, 3), rot (1, 1));
+	euler = [roll pitch yaw]
 end
