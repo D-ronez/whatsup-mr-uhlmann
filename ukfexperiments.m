@@ -3,6 +3,7 @@
 pkg load matgeom;
 source("util.m")
 source("imu_estimate.m")
+addpath("ukf")
 
 [ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
 
@@ -17,7 +18,7 @@ euler = rot2euler(rot);
 yaw = 0
 hold on;
 
-if true % Plot vertial acceleration graph along w/ baro alt
+if false % Plot vertial acceleration graph along w/ baro alt
 	tt = zeros(size(ttyyaccgyro)(1), 1);
 	yy = zeros(size(ttyyaccgyro)(1), 1);
 	t = ttyyaccgyro(1, 1);

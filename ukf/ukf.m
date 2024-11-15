@@ -1,7 +1,7 @@
 % Implements an unscented Kalman Filter (goole "Sigma-point Kalman Filters")
 % This code is derived from: https://stackoverflow.com/questions/55813719/multi-sensors-fusion-using-kalman-filter
 
-function [] = main()
+function [] = ukf()
     % time step
     dt = 0.01;
 
