@@ -1,5 +1,5 @@
 % Complementary filter, accelerometer coefficient
-global COMP_ACC_COEF = 0.9
+global COMP_ACC_COEF = 0.95
 global COMP_GYRO_COEF = 1.0 - COMP_ACC_COEF
 
 42;
@@ -19,7 +19,6 @@ end
 
 function [roll, pitch] = imu_euler2_from_acc(gvec)
 	% https://seanboe.com/blog/complementary-filters
-	gvec = normalize(gvec);
 	pitch = atan(-gvec(1) / sqrt(gvec(2)^2 + gvec(3)^2));
 	roll = atan(gvec(2) / sqrt(gvec(1)^2 + gvec(3)^2));
 end
@@ -40,11 +39,25 @@ function [euler] = euler_estimate_complemetary(euler, acc, gyro, dt)
 	gpitch_delta = gyro(2) * dt;
 
 	% Calculate the new angle
-	roll = euler(1);
-	pitch = euler(2);
-	roll = aroll * COMP_ACC_COEF + (roll + groll_delta) * COMP_GYRO_COEF;
-	pitch = apitch * COMP_ACC_COEF + (pitch + gpitch_delta) * COMP_GYRO_COEF;
+	% roll = euler(1);
+	% pitch = euler(2);
+
+	euler(1) = aroll * COMP_ACC_COEF + (euler(1) + groll_delta) * COMP_GYRO_COEF;
+	euler(2) = apitch * COMP_ACC_COEF + (euler(2) + gpitch_delta) * COMP_GYRO_COEF;
 	% Update the matrix
-	euler(1) = roll;
-	euler(2) = pitch;
+	% euler(1) = roll;
+	% euler(2) = pitch;
+end
+
+function [az] = vert_accel(euler, acc)
+	source("util.m")
+	% Gets projection of acc's Z onto global Z using orientation
+	% euler: orientation
+	% acc: accelerometer data
+
+	% Rotate the vector
+	rot = euler2rot(euler);
+	acc_global = rot * acc;
+
+	az = acc_global(3);
 end
