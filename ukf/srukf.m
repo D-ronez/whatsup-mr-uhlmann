@@ -102,5 +102,5 @@ function X = sigmas(x, S, c)
 
 	A = c * S';
 	Y = x(:, ones(1, numel(x)));
-	X = [x Y + A Y-A];
+	X = [x, Y + A, Y-A];
 end

@@ -7,7 +7,7 @@ function [] = srukf_baro()
 	r_baro = 0.5; % std of baro measurement
 	q_process = 0.1; % std of the process
 	% Prediction function
-	f = @(x, uarg)[predict_altitude_taylor(uarg.prev, uarg.dt, uarg.av, uarg.az)];
+	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
 	% Measurement function
 	h = @(x, ~)[x];
 	% Sensor measurements, baro, accel's Z post IMU estimation
@@ -34,11 +34,11 @@ function [] = srukf_baro()
 		uarg.dt = ttbaro(k) - ttbaro(k - 1);
 		uarg.az = yyaz(posaa) + g;
 		uarg.av = (yybaro(k) - yybaro(k - 1)) / (uarg.dt);
-		uarg.prev = x;
 
 		% Run SR-UKF
 		z = yybaro(k);
-		[x, s] = srukf(f, x, s, h, z, q_process, r_baro, uarg);
+		% [x, s] = srukf(f, x, s, h, z, q_process, r_baro, uarg);
+		[x, s] = ukf1d(f, h, s, r_baro, x, z, uarg);
 
 		% Save the result
 		yyfuse(k) = x;
