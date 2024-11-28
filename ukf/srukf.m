@@ -1,4 +1,4 @@
-function [x, S] = srukf(fstate, x, S, hmeas, z, Qs, Rs)
+function [x, S] = srukf(fstate, x, S, hmeas, z, Qs, Rs, uarg)
 	% SR-UKF   Square Root Unscented Kalman Filter for nonlinear dynamic systems
 	% [x, S] = ukf(f, x, S, h, z, Qs, Rs) returns state estimate, x and state covariance, P
 	% for nonlinear dynamic system (for simplicity, noises are assumed as additive):
@@ -15,6 +15,7 @@ function [x, S] = srukf(fstate, x, S, hmeas, z, Qs, Rs)
 	%           Rs: measurement noise standard deviation
 	%           hmeas: measurement function
 	%           fstate: prediction function
+	%           uarg: user argument, context that will be passed to measurement, and prediction function
 	% Output:   x: "a posteriori" state estimate
 	%           S: "a posteriori" square root of state covariance
 	%
@@ -24,34 +25,30 @@ function [x, S] = srukf(fstate, x, S, hmeas, z, Qs, Rs)
 	%
 	% By Zhe Hu at City University of Hong Kong, 05 / 01 / 2017
 	%
-	L = numel(x);                                 %numer of states
+	L = numel(x); %numer of states
 
 	% Scaling parameters
-	m = numel(z);                                 %numer of measurements
-	alpha = 1e-3;                                 %default, tunable
-	ki = 0;                                       %default, tunable
-	beta = 2;                                     %default, tunable
-	lambda = alpha^2 * (L + ki) - L;                    %scaling factor
-	c = L + lambda;                                 %scaling factor
+	m = numel(z); %numer of measurements
+	alpha = 1e-3; %default, tunable
+	ki = 0; %default, tunable
+	beta = 2; %default, tunable
+	lambda = alpha^2 * (L + ki) - L; %scaling factor
+	c = L + lambda; %scaling factor
 
 	% Weights
-	Wm = [lambda / c 0.5 / c + zeros(1, 2 * L)];           %weights for means
+	Wm = [lambda / c 0.5 / c + zeros(1, 2 * L)]; %weights for means
 	Wc = Wm;
-	Wc(1) = Wc(1) + (1 - alpha^2 + beta);               %weights for covariance
+	Wc(1) = Wc(1) + (1 - alpha^2 + beta); %weights for covariance
 
 	% Sigmas
 	c = sqrt(c);
-	X = sigmas(x, S, c);                            %sigma points around x
+	X = sigmas(x, S, c); %sigma points around x
 
-	[x1, X1, S1, X2] = ut(fstate, X, Wm, Wc, L, Qs);          %unscented transformation of process
-
-	% X1 = sigmas(x1, P1, c);                         %sigma points around x1
-	% X2 = X1-x1(:, ones(1, size(X1, 2)));             %deviation of X1
-	[z1, Z1, S2, Z2] = ut(hmeas, X1, Wm, Wc, m, Rs);       %unscented transformation of measurments
-	P12 = X2 * diag(Wc) * Z2';                        %transformed cross-covariance
+	[x1, X1, S1, X2] = ut(fstate, X, Wm, Wc, L, Qs, uarg); %unscented transformation of process
+	[z1, Z1, S2, Z2] = ut(hmeas, X1, Wm, Wc, m, Rs, uarg); %unscented transformation of measurments
+	P12 = X2 * diag(Wc) * Z2'; %transformed cross-covariance
 	K = P12 / S2 / S2';
-	x = x1 + K * (z-z1);                              %state update
-	%S = cholupdate(S1, K * P12, '-');                %covariance update
+	x = x1 + K * (z-z1); % state update
 	U = K * S2';
 	for i = 1:m
 		S1 = cholupdate(S1, U(:, i), '-');
@@ -59,7 +56,7 @@ function [x, S] = srukf(fstate, x, S, hmeas, z, Qs, Rs)
 	S = S1;
 end
 
-function [y, Y, S, Y1] = ut(f, X, Wm, Wc, n, Rs)
+function [y, Y, S, Y1] = ut(f, X, Wm, Wc, n, Rs, uarg)
 	%Unscented Transformation
 	%Input:
 	%        f: nonlinear map
@@ -78,7 +75,7 @@ function [y, Y, S, Y1] = ut(f, X, Wm, Wc, n, Rs)
 	y = zeros(n, 1);
 	Y = zeros(n, L);
 	for k = 1:L
-		Y(:, k) = f(X(:, k));
+		Y(:, k) = f(X(:, k), uarg);
 		y = y + Wm(k) * Y(:, k);
 	end
 	Y1 = Y-y(:, ones(1, L));
