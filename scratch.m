@@ -1,4 +1,10 @@
-if true
+
+function [] = glb()
+	global var = 42
+	var
+end
+
+if false
 	load yy
 	% Plot data
 	% Baro

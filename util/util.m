@@ -67,5 +67,18 @@ function euler = rot2euler(rot)
 	yaw = atan2(rot(2, 1), rot(2, 2));
 	roll = atan2(rot(3, 2), rot(2, 2));
 	pitch = atan2(rot(1, 3), rot (1, 1));
-	euler = [roll pitch yaw]
+	euler = [roll pitch yaw];
+end
+
+function [pos] = ts_find_measurement_before(tts, t)
+	% Finds measurement before "t" in timeseries' ("tss")
+
+	if size(tts)(2) < 2
+		pos = 1;
+	end
+	for pos = 2:size(tts)
+		if t > tts(pos)
+			return
+		end
+	end
 end
