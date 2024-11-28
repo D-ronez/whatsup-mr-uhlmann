@@ -1,8 +1,9 @@
-function [x, p] = ukf1d(f, h, p, r, xprev, z, uarg)
+function [x, p] = ukf1d(f, h, p, r, q, xprev, z, uarg)
 	% 1-dimensional version of Unscented Kalman filter
 	% f - prediction function @(xprev, uarg)
 	% h - measurement function @(xprev, uarg)
-	% p - variance of process
+	% p - previous variance
+	% q - variance of process
 	% r - variance of measurement
 	% z - measurement
 	%
@@ -21,13 +22,13 @@ function [x, p] = ukf1d(f, h, p, r, xprev, z, uarg)
 	wc(1) = wc(1) + (1 - alpha^2 + beta); %weights for covariance
 
 	% Apriori
-	xx = sigmas(xprev, p, c);
+	xx = sigmas(xprev, sqrt(p), c);
 	% Predict
 	for i = 1:size(xx, 2)
 		xx(:, i) = f(xx(:, i), uarg);
 	end
 	xk = sum(xx .* wm); % Predicted x (priori)
-	p = sum(wc .* [xx - xk].^2) + r;
+	p = sum(wc .* [xx - xk].^2) + q;
 
 	% Posteriori
 	yy = xx;
@@ -35,12 +36,14 @@ function [x, p] = ukf1d(f, h, p, r, xprev, z, uarg)
 		yy(:, i) = h(yy(:, i), uarg);
 	end
 	yk = sum(wm .* yy);
-
-	p_ykyk = sum(wc .* [yy - yk].^2) + r;
-	p_xkyk = sum(wc .* [xx - xk] .* [yy - yk]);
-	k = p_xkyk / p_ykyk; % Kalman gain
-	x = xk + k * (z - yk);
-	p = p - k * p_ykyk * k;
+	% Fuse multiple measurements with appropriate measurement variances
+	for i = 1:size(z, 2)
+		p_ykyk = sum(wc .* [yy - yk].^2) + r(i);
+		p_xkyk = sum(wc .* [xx - xk] .* [yy - yk]);
+		k = p_xkyk / p_ykyk; % Kalman gain
+		x = xk + k * (z(:, i) - yk);
+		p = p - k * p_ykyk * k;
+	end
 end
 
 function X = sigmas(x, S, c)

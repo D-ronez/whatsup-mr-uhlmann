@@ -4,7 +4,8 @@ function [] = srukf_baro()
 	load tt.msession;
 	load az.msession;
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
-	r_baro = 0.5; % std of baro measurement
+	r_baro = 1; % std of baro measurement
+	r_gnss = 0.3 % std of GNSS measurement
 	q_process = 0.1; % std of the process
 	% Prediction function
 	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
@@ -23,10 +24,12 @@ function [] = srukf_baro()
 
 	yyfuse = zeros(size(yybaro));
 	n = size(ttbaro)(1);
-	x = yybaro(1);
+	barooffset = ttyygnss(1, 5)
+	x = yybaro(1) + barooffset;
 	uarg.dt = ttbaro(2) - ttbaro(1);
 	posaa = 1;
-	yyfuse(1) = x
+	posgnss = 1;
+	yyfuse(1) = x;
 	for k = 2:n
 		% Prepare arg-s for the prediction function.
 		t = ttbaro(k);
@@ -35,10 +38,25 @@ function [] = srukf_baro()
 		uarg.az = yyaz(posaa) + g;
 		uarg.av = (yybaro(k) - yybaro(k - 1)) / (uarg.dt);
 
+		posgnss = get_tt_pos(ttyygnss(:, 1), t, posgnss);
+		usegnss = true;
+		if isnan(posgnss)
+			usegnss = false;
+			posgnss = 1;
+		end
+		altgnss = ttyygnss(posgnss, 5);
+
+		altbaro = yybaro(k) + barooffset;
+
 		% Run SR-UKF
-		z = yybaro(k);
+		z = [altbaro, altgnss];
+		r = [r_baro, r_gnss];
+		if ~usegnss
+			z = z(1)
+			r = r(1)
+		end
 		% [x, s] = srukf(f, x, s, h, z, q_process, r_baro, uarg);
-		[x, s] = ukf1d(f, h, s, r_baro, x, z, uarg);
+		[x, s] = ukf1d(f, h, s, r, q_process, x, z, uarg);
 
 		% Save the result
 		yyfuse(k) = x;
