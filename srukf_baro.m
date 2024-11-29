@@ -4,8 +4,8 @@ function [] = srukf_baro()
 	load tt.msession;
 	load az.msession;
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
-	r_baro = 1; % std of baro measurement
-	r_gnss = 0.3 % std of GNSS measurement
+	r_baro = 1.2; % std of baro measurement
+	r_gnss = 0.1 % std of GNSS measurement
 	q_process = 0.1; % std of the process
 	% Prediction function
 	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
@@ -64,6 +64,12 @@ function [] = srukf_baro()
 	end
 
 	save res;
+
+	plot(ttbaro, yyfuse);
+	hold on
+	plot(ttbaro, yybaro + barooffset);
+	plot(ttyygnss(:, 1), ttyygnss(:, 5));
+	legend('fuse', 'baro', 'gnss')
 end
 
 function [pos] = get_tt_pos(tt, t, hint)
