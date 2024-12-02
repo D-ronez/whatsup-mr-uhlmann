@@ -4,72 +4,92 @@ function [] = srukf_baro()
 	load tt.msession;
 	load az.msession;
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
-	r_baro = 1.2; % std of baro measurement
-	r_gnss = 0.1 % std of GNSS measurement
-	q_process = 0.1; % std of the process
+	% STD values
+	r_gnss = 0.1;
+	q_process = 0.3;
 	% Prediction function
 	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
 	% Measurement function
 	h = @(x, ~)[x];
-	% Sensor measurements, baro, accel's Z post IMU estimation
+	% Baro altitude timeseries
 	ttbaro = ttyybaroalt(:, 1);
 	yybaro = ttyybaroalt(:, 3);
+	% Gnss altitude timeseries
+	ttgnss = ttyygnss(:, 1);
+	yygnss = ttyygnss(:, 5);
 	ttaz = tt;
 	yyaz = az;
 	% Covariance matrix
-	s = 1;
+	s = r_gnss;
 
 	% Compensate for freefall acceleration
 	g = 9.80665;
+	azcalib = 2.35;
+	%g = 0;
 
-	yyfuse = zeros(size(yybaro));
-	n = size(ttbaro)(1);
-	barooffset = ttyygnss(1, 5)
-	x = yybaro(1) + barooffset;
-	uarg.dt = ttbaro(2) - ttbaro(1);
-	posaa = 1;
+	n = numel(ttgnss);
+	barooffset = ttyygnss(1, 5);
+	x = yygnss(1);
+	tprev = ttgnss(1);
+	t = tprev
+	uarg.dt = 0;
+	posaccel = 1;
+	posbaro = 1;
 	posgnss = 1;
-	yyfuse(1) = x;
+	yyfuse = [x];
+	ttfuse = [t];
+
 	for k = 2:n
+		t = ttgnss(k)
+		ygnss = yygnss(k);
+
 		% Prepare arg-s for the prediction function.
-		t = ttbaro(k);
-		posaa = get_tt_pos(ttbaro, t, posaa);
-		uarg.dt = ttbaro(k) - ttbaro(k - 1);
-		uarg.az = yyaz(posaa) + g;
-		uarg.av = (yybaro(k) - yybaro(k - 1)) / (uarg.dt);
+		posaccel = get_tt_pos(ttaz, tprev, posaccel) - 1
+		assert(posaccel > 0);
+		winstart = max([1, posaccel - 0]);
+		taz = ttaz(posaccel)
+		%uarg.az = yyaz(posaccel) + g + azcalib;
+		uarg.az = 0;
+		uarg.dt = t - tprev;
 
-		posgnss = get_tt_pos(ttyygnss(:, 1), t, posgnss);
-		usegnss = true;
-		if isnan(posgnss)
-			usegnss = false;
-			posgnss = 1;
+		posbaro = get_tt_pos(ttbaro, tprev, posbaro);
+		winstart = max([1, posbaro - 10]);
+		uarg.av = polyfit(ttbaro(winstart:posbaro), yybaro(winstart:posbaro), 1)(1)
+		% Baro start
+		if false
+			posbaro = get_tt_pos(ttbaro, tprev, posbaro)
+			tbaro = ttbaro(posbaro)
+			if posbaro > 1
+				dybaro = yybaro(posbaro) - yybaro(posbaro - 1)
+				dtbaro = ttbaro(posbaro) - ttbaro(posbaro - 1)
+				% Calculate speed using baro
+				uarg.av = dybaro / dtbaro
+			else
+				uarg.av = 0
+			end
 		end
-		altgnss = ttyygnss(posgnss, 5);
-
-		altbaro = yybaro(k) + barooffset;
 
 		% Run SR-UKF
-		z = [altbaro, altgnss];
-		r = [r_baro, r_gnss];
-		if ~usegnss
-			z = z(1)
-			r = r(1)
-		end
-		% [x, s] = srukf(f, x, s, h, z, q_process, r_baro, uarg);
+		z = ygnss;
+		r = r_gnss;
 		[x, s] = ukf1d(f, h, s, r, q_process, x, z, uarg);
 
 		% Save the result
 		yyfuse(k) = x;
+		ttfuse(k) = t;
+
+		tprev = t;
 		k
 	end
 
 	save res;
 
-	plot(ttbaro, yyfuse);
+	figure;
 	hold on
+	plot(ttfuse, yyfuse);
 	plot(ttbaro, yybaro + barooffset);
-	plot(ttyygnss(:, 1), ttyygnss(:, 5));
-	legend('fuse', 'baro', 'gnss')
+	plot(ttgnss, yygnss);
+	legend('fuse', 'baro', 'gnss');
 end
 
 function [pos] = get_tt_pos(tt, t, hint)
@@ -78,7 +98,7 @@ function [pos] = get_tt_pos(tt, t, hint)
 	pos = nan;
 	for i = 1:size(tt)(1)
 		if t < tt(i)
-			pos = i + hint;
+			pos = i + hint - 1;
 			break
 		end
 	end

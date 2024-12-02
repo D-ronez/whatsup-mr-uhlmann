@@ -64,8 +64,8 @@ function [x, istate] = varfilter(z, i, istate)
 		yybarocorr = [yybarocorr, yb];
 
 		% Calculate trust scores
-		vb = var(blag);
-		vg = var(glag);
+		vb = std(blag);
+		vg = std(glag);
 		gtrust = vb / (vb + vg);
 		btrust = 1 - gtrust;
 

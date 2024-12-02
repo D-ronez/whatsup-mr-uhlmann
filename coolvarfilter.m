@@ -8,7 +8,7 @@
 % according to their respective trust values.
 %
 
-function [x, istate] = coolfilter(z, i, istate)
+function [x, istate] = coolvarfilter(z, i, istate)
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
 
 	barooffset = 0; % The baro values will be constantly corrected against GNSS
@@ -20,9 +20,9 @@ function [x, istate] = coolfilter(z, i, istate)
 
 	% Cooldown for accumulated error
 	intcooldown = 0.2; % [m/s]
-	bsigma = 0.9;
-	gsigma = 0.1;
-	windowsize = 25;
+	bsigma = 0.5;
+	gsigma = 0.05;
+	winsize = 15;
 
 	ygintdiff = 0;
 	ybintdiff = 0;
@@ -42,12 +42,13 @@ function [x, istate] = coolfilter(z, i, istate)
 	yybdiffint = [];
 	ttbarocorr = [];
 	yybarocorr = [];
-	ttlag = [];
-	yygnsslag = [];
 	yybarolag = [];
+	yygnsslag = [];
 	% Fused height
 	ttfuse = [];
 	yyfuse = [];
+
+	% Sensor values' standard deviation
 
 	while ~isnan(ib) && ~isnan(ig)
 		% Previous sensor measurement
@@ -65,16 +66,23 @@ function [x, istate] = coolfilter(z, i, istate)
 		% Next sensor measurement
 		if usegnss
 			gnssready = true;
+
 			dt = ttgnss(ig) - ttgnss(ig - 1);
-			ydiff = abs(yg - yygnss(ig));
 			yg = yygnss(ig);
 			t = ttgnss(ig);
+
+			% Score
+			backlag = get_backlag(ig, winsize, yygnss);
+			ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * dt + (std(backlag, 1) - gsigma) * dt);
 		else
 			baroready = true;
+
 			dt = ttbaro(ib) - ttbaro(ib - 1);
-			ydiff = abs(yb - yybaro(ib));
 			yb = yybaro(ib);
 			t = ttbaro(ib);
+
+			backlag = get_backlag(ib, winsize, yybaro);
+			ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * dt + (std(backlag, 1) - bsigma) * dt);
 		end
 
 		% Save corrected barometer values
@@ -88,26 +96,12 @@ function [x, istate] = coolfilter(z, i, istate)
 			barooffset = barooffset + barooffsetdelta;
 		end
 
+		% Rebalance scores when got both baro., and GNSS
 		if baroready && gnssready
-			% Synchronized. Rebalance scores when got both baro., and GNSS
-			% Update lags
-			ttlag = lag_update(ttlag, t, windowsize);
-			yygnsslag = lag_update(yygnsslag, yg, windowsize);
-			yybarolag = lag_update(yybarolag, yb, windowsize);
 			baroready = false;
 			gnssready = false;
-			if numel(ttlag) >= 2
-				dt = ttlag(2) - ttlag(1);
-				% Update baroint
-				babsdiff = abs(diff(yybarolag));
-				ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * dt + (sum(babsdiff) - bsigma * numel(babsdiff)) * dt);
-				% Update gnssint
-				gabsdiff = abs(diff(yygnsslag));
-				ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * dt + (sum(gabsdiff) - gsigma * numel(gabsdiff)) * dt);
-
-				gtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
-				btrust = 1 - gtrust;
-			end
+			gtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
+			btrust = 1 - gtrust;
 		end
 
 		% Save fused
@@ -123,7 +117,8 @@ function [x, istate] = coolfilter(z, i, istate)
 		i = i + 1
 	end
 
-	save cool;
+	save coolvar;
+
 	figure;
 	hold on
 	plot(ttbaro, yybaro + ttyygnss(1, 5) - yybaro(1));
