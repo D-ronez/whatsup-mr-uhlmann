@@ -18,37 +18,32 @@ function [x, istate] = difffilter(z, i, istate)
 	ttgnss = ttyygnss(:, 1);
 	yygnss = ttyygnss(:, 5);
 
-	gwinsize = 1;
-	bwinsize = gwinsize;
+	% Cooldown for accumulated error
+	intcooldown = 0.2; % [m/s]
+	bsigma = 1;
+	gsigma = 0.1;
+
 	ygintdiff = 0;
 	ybintdiff = 0;
-	intcooldown = 1; % [m/s]
-	bsigma = 2;
-	gsigma = 0.1;
-	trustlag = 0.0;
-
-	% Fused height
-	ttfuse = [];
-	yyfuse = [];
-	% Corrected baro values
-	ttbarocorr = [];
-	yybarocorr = [];
 	ig = 1;
 	ib = 1;
 	i = 1;
 	gtrust = 1.0;
 	btrust = 0.0;
-	yb = yybaro(ib);
-	yg = yygnss(ig);
-	yygtrust = [];
-	yybtrust = [];
-	% DiffLag-s are queues of absolute differences between consecutive sensor measurements
-	bdifflag = [];
-	gdifflag = [];
-	yygdiffint = [];
-	yybdiffint = [];
 	baroready = false;
 	gnssready = false;
+	yb = yybaro(ib);
+	yg = yygnss(ig);
+
+	yygtrust = [];
+	yybtrust = [];
+	yygdiffint = [];
+	yybdiffint = [];
+	ttbarocorr = [];
+	yybarocorr = [];
+	% Fused height
+	ttfuse = [];
+	yyfuse = [];
 
 	% Sensor values' standard deviation
 
@@ -67,23 +62,19 @@ function [x, istate] = difffilter(z, i, istate)
 
 		% Next sensor measurement
 		if usegnss
-			gdt = ttgnss(ig) - ttgnss(ig - 1);
 			gnssready = true;
-			ygdiff = abs(yg - yygnss(ig));
-			gdifflag = lag_update(gdifflag, ygdiff, gwinsize);
-			ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * gdt);
-			ygintdiff = ygintdiff + clamp(0.0001, inf, sum(gdifflag) - gsigma * numel(gdifflag));
+			dt = ttgnss(ig) - ttgnss(ig - 1);
+			ydiff = abs(yg - yygnss(ig));
 			yg = yygnss(ig);
 			t = ttgnss(ig);
+			ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * dt + ydiff - gsigma);
 		else
-			bdt = ttbaro(ib) - ttbaro(ib - 1);
 			baroready = true;
-			ybdiff = abs(yb - yybaro(ib));
-			bdifflag = lag_update(bdifflag, ybdiff, bwinsize);
-			ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * bdt);
-			ybintdiff = ybintdiff + clamp(0.0001, inf, sum(bdifflag) - bsigma * numel(bdifflag));
+			dt = ttbaro(ib) - ttbaro(ib - 1);
+			ydiff = abs(yb - yybaro(ib));
 			yb = yybaro(ib);
 			t = ttbaro(ib);
+			ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * dt + ydiff - bsigma);
 		end
 
 		% Save corrected barometer values
@@ -97,23 +88,20 @@ function [x, istate] = difffilter(z, i, istate)
 			barooffset = barooffset + barooffsetdelta;
 		end
 
-		% Rebalance scores
+		% Rebalance scores when got both baro., and GNSS
 		if baroready && gnssready
 			baroready = false;
 			gnssready = false;
-			newgtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
-			gtrust = gtrust * trustlag + (1.0 - trustlag) * newgtrust;
+			gtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
 			btrust = 1 - gtrust;
 		end
 
 		% Save fused
 		ttfuse(i) = t;
 		yyfuse(i) = gtrust * yg + btrust * yb;
-
 		% Save trust scores
 		yybtrust = [yybtrust, btrust];
 		yygtrust = [yygtrust, gtrust];
-
 		% Save diffints
 		yybdiffint = [yybdiffint, ybintdiff];
 		yygdiffint = [yygdiffint, ygintdiff];
