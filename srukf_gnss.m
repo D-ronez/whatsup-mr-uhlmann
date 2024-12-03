@@ -103,9 +103,13 @@ function [] = srukf_baro()
 		uarg.az = 0;
 		uarg.dt = t - tprev;
 
+		% Calculate speed using linear approximation
 		posbaro = get_tt_pos(ttbaro, tprev, posbaro);
 		winstart = max([1, posbaro - 50]);
-		uarg.av = polyfit(ttbaro(winstart:posbaro), yybaro(winstart:posbaro), 1)(1)
+		sparse_factor = 5;
+		tt = ttbaro(winstart:posbaro);
+		yy = yybaro(winstart:posbaro);
+		uarg.av = polyfit(tt(1:sparse_factor:numel(tt)), yy(1:sparse_factor:numel(yy)), 1)(1)
 		% Baro start
 		if false
 			posbaro = get_tt_pos(ttbaro, tprev, posbaro)
