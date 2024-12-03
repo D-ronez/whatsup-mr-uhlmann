@@ -108,17 +108,17 @@ function [x, istate] = coolfilter(z, i, istate)
 				gtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
 				btrust = 1 - gtrust;
 			end
-		end
 
-		% Save fused
-		ttfuse(i) = t;
-		yyfuse(i) = gtrust * yg + btrust * yb;
-		% Save trust scores
-		yybtrust = [yybtrust, btrust];
-		yygtrust = [yygtrust, gtrust];
-		% Save diffints
-		yybdiffint = [yybdiffint, ybintdiff];
-		yygdiffint = [yygdiffint, ygintdiff];
+			% Save fused
+			ttfuse = [ttfuse, t];
+			yyfuse = [yyfuse, gtrust * yg + btrust * yb];
+			% Save trust scores
+			yybtrust = [yybtrust, btrust];
+			yygtrust = [yygtrust, gtrust];
+			% Save diffints
+			yybdiffint = [yybdiffint, ybintdiff];
+			yygdiffint = [yygdiffint, ygintdiff];
+		end
 
 		i = i + 1
 	end
@@ -127,9 +127,9 @@ function [x, istate] = coolfilter(z, i, istate)
 	figure;
 	hold on
 	plot(ttbaro, yybaro + ttyygnss(1, 5) - yybaro(1));
-	plot(ttgnss, yygnss, 'LineWidth', 4);
+	plot(ttgnss, yygnss);
 	plot(ttbarocorr, yybarocorr);
-	plot(ttfuse, yyfuse, 'LineWidth', 3);
+	plot(ttfuse, yyfuse);
 	legend(
 		'baro',
 		'gnss',
@@ -156,9 +156,9 @@ function [x, istate] = coolfilter(z, i, istate)
 	ax1 = subplot(2, 1, 1);
 	hold on
 	plot(ttbaro, yybaro + ttyygnss(1, 5) - yybaro(1));
-	plot(ttgnss, yygnss, 'LineWidth', 4);
+	plot(ttgnss, yygnss);
 	plot(ttbarocorr, yybarocorr);
-	plot(ttfuse, yyfuse, 'LineWidth', 3);
+	plot(ttfuse, yyfuse);
 	legend('baro', 'gnss', 'baro corrected', 'fused');
 	% Plot integrated diffs
 	ax2 =subplot(2, 1, 2);
