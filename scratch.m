@@ -4,18 +4,31 @@ if true
 	yymseukf = yymse;
 	ttfuseukf = ttfuse;
 	yyfuseukf = yyfuse;
+	ttmaeukf = ttmae;
+	yymaeukf = yymae;
 	load coolvar;
 	ttmsecoolv = ttmse;
 	yymsecoolv = yymse;
 	ttfusecoolv = ttfuse;
 	yyfusecoolv = yyfuse;
+	ttmaecoolv = ttmae;
+	yymaecoolv = yymae;
 
 	% MSE
 	figure
 	hold on
+	title("MSE with sliding window")
 	plot(ttmseukf, yymseukf);
 	plot(ttmsecoolv, yymsecoolv);
-	legend("Sliding window MSE UKF", "Sliding window MSE Cooldown Filter");
+	legend("Sliding window MSE UKF", "Sliding window MSE Var-Cooldown Filter");
+
+	% MAE
+	figure
+	hold on
+	title("MAE with sliding window")
+	plot(ttmaeukf, yymaeukf);
+	plot(ttmaecoolv, yymaecoolv);
+	legend("Sliding window MAE UKF", "Sliding window mae Var-Cooldown Filter");
 
 	% Results comparison
 	figure;
@@ -24,6 +37,7 @@ if true
 	plot(ttfusecoolv, yyfusecoolv, 'Color', 'red');
 	plot(ttfuseukf, yyfuseukf, 'Color', 'blue');
 	legend("GNSS", "Cooldown filter", "UKF");
+
 end
 
 if false

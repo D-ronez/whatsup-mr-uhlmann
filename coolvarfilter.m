@@ -50,6 +50,8 @@ function [x, istate] = coolfilter(z, i, istate)
 	yyfuse = [];
 	ttmse = [];
 	yymse = [];
+	ttmae = [];
+	yymae = [];
 
 	while ~isnan(ib) && ~isnan(ig)
 		% Previous sensor measurement
@@ -123,6 +125,9 @@ function [x, istate] = coolfilter(z, i, istate)
 			b = yygnss(winbegin:winend);
 			ttmse = [ttmse, t];
 			yymse = [yymse, sum(a - b) .^ 2 / msewinsize];
+			% Save MAE
+			ttmae = [ttmae, t];
+			yymae = [yymae, sum(abs(a - b))];
 		end
 
 		i = i + 1

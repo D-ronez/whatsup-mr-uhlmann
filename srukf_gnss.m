@@ -41,6 +41,8 @@ function [] = srukf_baro()
 	ttfuse = [t];
 	ttmse = [];
 	yymse = [];
+	ttmae = [];
+	yymae = [];
 	ttbarocorr = [];
 	yybarocorr = [];
 
@@ -135,6 +137,9 @@ function [] = srukf_baro()
 		b = yygnss(winbegin:winend)';
 		ttmse = [ttmse, t];
 		yymse = [yymse, sum(a - b) .^ 2 / msewinsize];
+		% Save MAE
+		ttmae = [ttmae, t];
+		yymae = [yymae, sum(abs(a - b))];
 
 		tprev = t;
 		k
