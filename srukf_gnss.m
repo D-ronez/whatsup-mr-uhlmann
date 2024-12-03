@@ -5,8 +5,8 @@ function [] = srukf_baro()
 	load az.msession;
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
 	% STD values
-	r_gnss = 0.1;
-	q_process = 0.3;
+	r_gnss = 0.005;
+	q_process = 12.0;
 	% Prediction function
 	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
 	% Measurement function
@@ -53,7 +53,7 @@ function [] = srukf_baro()
 		uarg.dt = t - tprev;
 
 		posbaro = get_tt_pos(ttbaro, tprev, posbaro);
-		winstart = max([1, posbaro - 10]);
+		winstart = max([1, posbaro - 50]);
 		uarg.av = polyfit(ttbaro(winstart:posbaro), yybaro(winstart:posbaro), 1)(1)
 		% Baro start
 		if false
