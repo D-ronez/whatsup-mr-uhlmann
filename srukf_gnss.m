@@ -38,6 +38,8 @@ function [] = srukf_baro()
 	posgnss = 1;
 	yyfuse = [x];
 	ttfuse = [t];
+	ttmse = [];
+	yymse = [];
 
 	for k = 2:n
 		t = ttgnss(k)
@@ -78,11 +80,20 @@ function [] = srukf_baro()
 		yyfuse(k) = x;
 		ttfuse(k) = t;
 
+		% Save MSE
+		msewinsize = 100;
+		winend = numel(yyfuse);
+		winbegin = max(1, winend - msewinsize);
+		a = yyfuse(winbegin:winend);
+		b = yygnss(winbegin:winend)';
+		ttmse = [ttmse, t];
+		yymse = [yymse, sum(a - b) .^ 2 / msewinsize];
+
 		tprev = t;
 		k
 	end
 
-	save res;
+	save ukfgnss;
 
 	figure;
 	hold on
@@ -90,6 +101,10 @@ function [] = srukf_baro()
 	plot(ttbaro, yybaro + barooffset);
 	plot(ttgnss, yygnss);
 	legend('fuse', 'baro', 'gnss');
+
+	% Plot MSE
+	figure;
+	plot(ttmse, yymse);
 end
 
 function [pos] = get_tt_pos(tt, t, hint)

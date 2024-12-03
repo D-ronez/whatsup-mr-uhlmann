@@ -8,21 +8,21 @@
 % according to their respective trust values.
 %
 
-function [x, istate] = coolvarfilter(z, i, istate)
+function [x, istate] = coolfilter(z, i, istate)
 	[ttyybaroalt, ttyygnss, ttyyaccgyro] = convert_data_401("/home/dm/Documents/CODE-69910-OverthrottleGnssSag/data/from-pilots/csvs/", "00284");
 
-	barooffset = 0; % The baro values will be constantly corrected against GNSS
+	barooffset = ttyygnss(1, 1); % The baro values will be constantly corrected against GNSS
 	bcorr_slowdown = 0.008; % Correction scale for baro offset, the lower it is, the slower baro values are corrected
-	ttbaro = ttyybaroalt(:, 1);
-	yybaro = ttyybaroalt(:, 3) + barooffset;;
-	ttgnss = ttyygnss(:, 1);
-	yygnss = ttyygnss(:, 5);
+	ttbaro = ttyybaroalt(:, 1)';
+	yybaro = ttyybaroalt(:, 3)' + barooffset;
+	ttgnss = ttyygnss(:, 1)';
+	yygnss = ttyygnss(:, 5)';
 
 	% Cooldown for accumulated error
 	intcooldown = 0.2; % [m/s]
-	bsigma = 0.5;
-	gsigma = 0.05;
-	winsize = 15;
+	bsigma = 1; % [m]
+	gsigma = 0.1; % [m]
+	windowsize = 15;
 
 	ygintdiff = 0;
 	ybintdiff = 0;
@@ -42,13 +42,14 @@ function [x, istate] = coolvarfilter(z, i, istate)
 	yybdiffint = [];
 	ttbarocorr = [];
 	yybarocorr = [];
-	yybarolag = [];
+	ttlag = [];
 	yygnsslag = [];
+	yybarolag = [];
 	% Fused height
 	ttfuse = [];
 	yyfuse = [];
-
-	% Sensor values' standard deviation
+	ttmse = [];
+	yymse = [];
 
 	while ~isnan(ib) && ~isnan(ig)
 		% Previous sensor measurement
@@ -66,23 +67,16 @@ function [x, istate] = coolvarfilter(z, i, istate)
 		% Next sensor measurement
 		if usegnss
 			gnssready = true;
-
 			dt = ttgnss(ig) - ttgnss(ig - 1);
+			ydiff = abs(yg - yygnss(ig));
 			yg = yygnss(ig);
 			t = ttgnss(ig);
-
-			% Score
-			backlag = get_backlag(ig, winsize, yygnss);
-			ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * dt + (std(backlag, 1) - gsigma) * dt);
 		else
 			baroready = true;
-
 			dt = ttbaro(ib) - ttbaro(ib - 1);
+			ydiff = abs(yb - yybaro(ib));
 			yb = yybaro(ib);
 			t = ttbaro(ib);
-
-			backlag = get_backlag(ib, winsize, yybaro);
-			ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * dt + (std(backlag, 1) - bsigma) * dt);
 		end
 
 		% Save corrected barometer values
@@ -96,48 +90,64 @@ function [x, istate] = coolvarfilter(z, i, istate)
 			barooffset = barooffset + barooffsetdelta;
 		end
 
-		% Rebalance scores when got both baro., and GNSS
 		if baroready && gnssready
+			% Synchronized. Rebalance scores when got both baro., and GNSS
+			% Update lags
+			ttlag = lag_update(ttlag, t, windowsize);
+			yygnsslag = lag_update(yygnsslag, yg, windowsize);
+			yybarolag = lag_update(yybarolag, yb, windowsize);
 			baroready = false;
 			gnssready = false;
+
+			backlag = yybarolag;
+			ybintdiff = clamp(0.0001, inf, ybintdiff - intcooldown * dt + (std(backlag, 1) - bsigma) * dt);
+			backlag = yygnsslag;
+			ygintdiff = clamp(0.0001, inf, ygintdiff - intcooldown * dt + (std(backlag, 1) - gsigma) * dt);
 			gtrust = clamp(0, 1, ybintdiff / (ybintdiff + ygintdiff));
 			btrust = 1 - gtrust;
-		end
 
-		% Save fused
-		ttfuse(i) = t;
-		yyfuse(i) = gtrust * yg + btrust * yb;
-		% Save trust scores
-		yybtrust = [yybtrust, btrust];
-		yygtrust = [yygtrust, gtrust];
-		% Save diffints
-		yybdiffint = [yybdiffint, ybintdiff];
-		yygdiffint = [yygdiffint, ygintdiff];
+			% Save fused
+			ttfuse = [ttfuse, t];
+			yyfuse = [yyfuse, gtrust * yg + btrust * yb];
+			% Save trust scores
+			yybtrust = [yybtrust, btrust];
+			yygtrust = [yygtrust, gtrust];
+			% Save diffints
+			yybdiffint = [yybdiffint, ybintdiff];
+			yygdiffint = [yygdiffint, ygintdiff];
+			% Save MSE
+			msewinsize = 100;
+			winend = numel(yyfuse);
+			winbegin = max(1, winend - msewinsize);
+			a = yyfuse(winbegin:winend);
+			b = yygnss(winbegin:winend);
+			ttmse = [ttmse, t];
+			yymse = [yymse, sum(a - b) .^ 2 / msewinsize];
+		end
 
 		i = i + 1
 	end
 
 	save coolvar;
-
 	figure;
 	hold on
 	plot(ttbaro, yybaro + ttyygnss(1, 5) - yybaro(1));
-	plot(ttgnss, yygnss, 'LineWidth', 4);
-	plot(ttbarocorr, yybarocorr);
-	plot(ttfuse, yyfuse, 'LineWidth', 3);
+	plot(ttgnss, yygnss);
+	plot(ttfuse, yyfuse);
 	legend(
 		'baro',
 		'gnss',
-		'baro corrected',
 		'fused'
 	);
 
 	% Plot trust scores
-	figure;
-	hold on;
-	plot(ttfuse, yybtrust);
-	plot(ttfuse, yygtrust);
-	legend("Baro trust", "GNSS trust");
+	if false
+		figure;
+		hold on;
+		plot(ttfuse, yybtrust);
+		plot(ttfuse, yygtrust);
+		legend("Baro trust", "GNSS trust");
+	end
 
 	% Plot integrated diffs
 	figure;
@@ -151,9 +161,9 @@ function [x, istate] = coolvarfilter(z, i, istate)
 	ax1 = subplot(2, 1, 1);
 	hold on
 	plot(ttbaro, yybaro + ttyygnss(1, 5) - yybaro(1));
-	plot(ttgnss, yygnss, 'LineWidth', 4);
+	plot(ttgnss, yygnss);
 	plot(ttbarocorr, yybarocorr);
-	plot(ttfuse, yyfuse, 'LineWidth', 3);
+	plot(ttfuse, yyfuse);
 	legend('baro', 'gnss', 'baro corrected', 'fused');
 	% Plot integrated diffs
 	ax2 =subplot(2, 1, 2);
@@ -162,6 +172,10 @@ function [x, istate] = coolvarfilter(z, i, istate)
 	plot(ttfuse, yygdiffint);
 	legend("Baro diff int", "GNSS diff int")
 	linkaxes([ax1, ax2], "x")
+
+	% Plot MSE
+	figure;
+	plot(ttmse, yymse);
 end
 
 function [v] = clamp(a, b, v)
