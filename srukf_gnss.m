@@ -7,6 +7,8 @@ function [] = srukf_baro()
 	% STD values
 	r_gnss = 0.005;
 	q_process = 12.0;
+	% Correction scale for baro offset, the lower it is, the slower baro values are corrected
+	bcorr_slowdown = 0.008;
 	% Prediction function
 	f = @(x, uarg)[predict_altitude_taylor(x, uarg.dt, uarg.av, uarg.az)];
 	% Measurement function
@@ -28,7 +30,6 @@ function [] = srukf_baro()
 	%g = 0;
 
 	n = numel(ttgnss);
-	barooffset = ttyygnss(1, 5);
 	x = yygnss(1);
 	tprev = ttgnss(1);
 	t = tprev
@@ -40,6 +41,52 @@ function [] = srukf_baro()
 	ttfuse = [t];
 	ttmse = [];
 	yymse = [];
+	ttbarocorr = [];
+	yybarocorr = [];
+
+	% Compensate baro drift using GNSS
+	barooffset = ttyygnss(1, 5);
+	ib = 1;
+	ig = 1;
+	i = 1;
+	yb = 0;
+	yg = 0;
+	while ~isnan(ib) && ~isnan(ig)
+		% Previous sensor measurement
+		yb = yybaro(ib) + barooffset;
+		yg = yygnss(ig);
+
+		% Model acquisition of the next value from the pre-loaded time series
+		[ig, ib, used] = pick_next_point_t(ig, ib, ttgnss, ttbaro);
+		usegnss = (used == 1);
+		t = 0;
+		if isnan(ib) || isnan(ig)
+			break
+		end
+
+		% Next sensor measurement
+		if usegnss
+			gnssready = true;
+			yg = yygnss(ig);
+			t = ttgnss(ig);
+
+			% Update baro offset, apply correction with each GNSS sensor update
+			barooffsetdelta = (yg - yb) * bcorr_slowdown;
+			barooffset = barooffset + barooffsetdelta;
+		else
+			baroready = true;
+			yb = yybaro(ib);
+			t = ttbaro(ib);
+
+			% Save corrected barometer values
+			yb = yybaro(ib) + barooffset;
+			ttbarocorr = [ttbarocorr, t];
+			yybarocorr = [yybarocorr, yb];
+			yybaro(ib - 1) = yb;
+		end
+
+		i = i + 1
+	end
 
 	for k = 2:n
 		t = ttgnss(k)
@@ -97,10 +144,10 @@ function [] = srukf_baro()
 
 	figure;
 	hold on
-	plot(ttfuse, yyfuse);
-	plot(ttbaro, yybaro + barooffset);
+	plot(ttbaro, yybaro);
 	plot(ttgnss, yygnss);
-	legend('fuse', 'baro', 'gnss');
+	plot(ttfuse, yyfuse);
+	legend('baro', 'gnss', 'fuse');
 
 	% Plot MSE
 	figure;
@@ -129,4 +176,26 @@ function [alt1] = predict_altitude_taylor(alt0, dt, av0, az0)
 	% alt1: predicted altitude
 
 	alt1 = alt0 + dt * av0 + dt^2 * az0 / 2;
+end
+
+function [ia, ib, i] = pick_next_point_t(ia, ib, tta, ttb)
+	% From 2 sets of time points, pick up the next one (closer to the current)
+	%
+
+	i = 1;
+	if ia >= numel(tta)
+		ia = nan;
+	elseif ib >= numel(ttb)
+		ib = nan;
+	else
+		ta = tta(ia + 1);
+		tb = ttb(ib + 1);
+		if ta > tb
+			ib = ib + 1;
+			i = 2;
+		else
+			ia = ia + 1;
+			i = 1;
+		end
+	end
 end
