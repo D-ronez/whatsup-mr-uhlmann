@@ -1,7 +1,29 @@
+if true
+	load ukfgnss;
+	ttmseukf = ttmse;
+	yymseukf = yymse;
+	ttfuseukf = ttfuse;
+	yyfuseukf = yyfuse;
+	load coolvar;
+	ttmsecoolv = ttmse;
+	yymsecoolv = yymse;
+	ttfusecoolv = ttfuse;
+	yyfusecoolv = yyfuse;
 
-function [] = glb()
-	global var = 42
-	var
+	% MSE
+	figure
+	hold on
+	plot(ttmseukf, yymseukf);
+	plot(ttmsecoolv, yymsecoolv);
+	legend("Sliding window MSE UKF", "Sliding window MSE Cooldown Filter");
+
+	% Results comparison
+	figure;
+	hold on;
+	plot(ttgnss, yygnss, 'Color', 'black');
+	plot(ttfusecoolv, yyfusecoolv, 'Color', 'red');
+	plot(ttfuseukf, yyfuseukf, 'Color', 'blue');
+	legend("GNSS", "Cooldown filter", "UKF");
 end
 
 if false
