@@ -15,3 +15,5 @@ global gsigma;
 global windowsize;
 global yb;
 global yg;
+global gmeanprev;
+global bmeanprev;

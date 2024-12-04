@@ -26,8 +26,6 @@ function [] = cooldownmisc(filtertype)
 
 	yygtrust = [];
 	yybtrust = [];
-	yygint = [];
-	yybint = [];
 	ttbarocorr = [];
 	yybarocorr = [];
 	% Fused height
@@ -48,6 +46,10 @@ function [] = cooldownmisc(filtertype)
 		on_baro = @(bt, gt, t, y)varcool_on_baro(bt, gt, t ,y);
 		on_gnss = @(bt, gt, t, y)varcool_on_gnss(bt, gt, t ,y);
 		init = @()varcool_init();
+	elseif strcmp(filtertype, 'varmean')
+		on_baro = @(bt, gt, t, y)varmean_on_baro(bt, gt, t ,y);
+		on_gnss = @(bt, gt, t, y)varmean_on_gnss(bt, gt, t ,y);
+		init = @()varmean_init();
 	else
 		error('wrong filter type');
 	end
@@ -238,7 +240,7 @@ function [] = varcool_init()
 	gnssready = false;
 	ybint = 0;
 	ygint = 0;
-	tprev = 0;
+	tprev = nan;
 	intcooldown = 0.2; % [m/s]
 	bsigma = 0.5; % [m]
 	gsigma = 0.1; % [m]
@@ -286,3 +288,71 @@ function [btrust, gtrust] = varcool(btrust, gtrust, t)
 	end
 end
 
+function [] = varmean_init()
+	source("coolglobal.m")
+	yybarolag = [];
+	ttbarolag = [];
+	ttgnsslag = [];
+	yygnsslag = [];
+	yygint = [];
+	yybint = [];
+	baroready = false;
+	gnssready = false;
+	ybint = 0;
+	ygint = 0;
+	tprev = nan;
+	intcooldown = 0.1; % [m/s]
+	bsigma = 0.5; % [m]
+	gsigma = 0.1; % [m]
+	windowsize = 15;
+	bmeanprev = 0;
+	gmeanprev = 0;
+end
+
+function [btrust, gtrust] = varmean_on_baro(btrust, gtrust, t, y)
+	source("coolglobal.m")
+	baroready = true;
+	yb = y;
+	[btrust, gtrust] = varmean(btrust, gtrust, t);
+end
+
+function [btrust, gtrust] = varmean_on_gnss(btrust, gtrust, t, y)
+	source("coolglobal.m")
+	gnssready = true;
+	yg = y;
+	[btrust, gtrust] = varmean(btrust, gtrust, t);
+end
+
+function [btrust, gtrust] = varmean(btrust, gtrust, t)
+	source("coolglobal.m")
+	if baroready && gnssready
+		baroready = false;
+		gnssready = false;
+		if isnan(tprev)
+			tprev = t;
+			return;
+		end
+		dt = t - tprev
+		% Synchronized. Rebalance scores when got both baro., and GNSS
+		% Update lags
+		yygnsslag = lag_update(yygnsslag, yg, windowsize);
+		yybarolag = lag_update(yybarolag, yb, windowsize);
+		baroready = false;
+		gnssready = false;
+
+		bdiff = 0;
+		gdiff = 0;
+		if numel(yybarolag) > 1 && numel(yygnsslag) > 1
+			bdiff = abs(bmeanprev - mean(yybarolag));
+			gdiff = abs(gmeanprev - mean(yygnsslag));
+		end
+		gmeanprev = mean(yygnsslag);
+		bmeanprev = mean(yybarolag);
+
+		ybint = clamp(0.0003, inf, ybint - intcooldown * dt + bdiff * dt);
+		ygint = clamp(0.0001, inf, ygint - intcooldown * dt + gdiff * dt);
+		gtrust = clamp(0, 1, ybint / (ybint + ygint));
+		btrust = 1 - gtrust;
+		tprev = t;
+	end
+end
