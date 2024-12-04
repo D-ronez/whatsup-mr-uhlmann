@@ -90,6 +90,7 @@ function [] = srukf_baro()
 		i = i + 1
 	end
 
+	prev_baromean = nan;
 	for k = 2:n
 		t = ttgnss(k)
 		ygnss = yygnss(k);
@@ -105,11 +106,20 @@ function [] = srukf_baro()
 
 		% Calculate speed using linear approximation
 		posbaro = get_tt_pos(ttbaro, tprev, posbaro);
-		winstart = max([1, posbaro - 50]);
-		sparse_factor = 5;
+		winstart = max([1, posbaro - 20]);
+		sparse_factor = 1;
 		tt = ttbaro(winstart:posbaro);
 		yy = yybaro(winstart:posbaro);
-		uarg.av = polyfit(tt(1:sparse_factor:numel(tt)), yy(1:sparse_factor:numel(yy)), 1)(1)
+		baromean = mean(yy);
+		v1 = polyfit(tt(1:sparse_factor:numel(tt)), yy(1:sparse_factor:numel(yy)), 1)(1)
+		if ~isnan(prev_baromean)
+			uarg.av = (baromean - prev_baromean) / uarg.dt;
+		else
+			uarg.av = 0;
+		end
+		prev_baromean = baromean;
+		v2 = uarg.av
+
 		% Baro start
 		if false
 			posbaro = get_tt_pos(ttbaro, tprev, posbaro)
