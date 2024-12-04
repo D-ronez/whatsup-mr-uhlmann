@@ -1,0 +1,17 @@
+global yybarolag;
+global ttbarolag;
+global ttgnsslag;
+global yygnsslag;
+global baroready;
+global gnssready;
+global ybint;
+global yygint;
+global yybint;
+global ygint;
+global tprev;
+global intcooldown;
+global bsigma;
+global gsigma;
+global windowsize;
+global yb;
+global yg;
